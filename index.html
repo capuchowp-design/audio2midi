@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Áudio → MIDI</title>
+  <meta name="description" content="Converte áudio em MIDI com DSP puro (YIN + envelope de amplitude), 100% no navegador.">
+  <meta name="theme-color" content="#0b0d14">
+  <meta name="color-scheme" content="dark">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Áudio→MIDI">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADAAgMAAAAvsoSUAAAADFBMVEX7vyToefki0+4LDRRYlFBPAAAAtUlEQVR42u2ZQQqDMBBF/0hdd+V9PESn9Iy68Qjex5VrQd24sS2VSqiJfbMJCTwwf/6Pgdik7yoTAAAAAAAAAEDKwOVpPjRyVEqwceuql9FR6aU+WjzyPXTtRjyTdKuT6bCyDo2KUpLGx7JSIesP+lDLbqi07xCQlFWoFFjW+yr+yBpj4xy36o1ND/+k3M/Vh97MzEoius8ahZ8ncbnHfROQdJ34oQBsl/GABwAAAAAAAPBfwAyUVxX9FL0zEAAAAABJRU5ErkJggg==">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <header class="top">
+      <div class="brand">
+        <svg class="logo" viewBox="0 0 512 512" aria-hidden="true">
+          <rect width="512" height="512" rx="110" fill="#141824"/>
+          <g fill="#22d3ee"><rect x="76" y="226" width="28" height="60" rx="8"/><rect x="120" y="176" width="28" height="160" rx="8"/><rect x="164" y="126" width="28" height="260" rx="8"/><rect x="208" y="166" width="28" height="180" rx="8"/><rect x="252" y="206" width="28" height="100" rx="8"/></g>
+          <rect x="310" y="150" width="86" height="36" rx="10" fill="#22d3ee"/><rect x="350" y="206" width="86" height="36" rx="10" fill="#e879f9"/><rect x="300" y="262" width="72" height="36" rx="10" fill="#e879f9"/><rect x="380" y="318" width="60" height="36" rx="10" fill="#fbbf24"/>
+        </svg>
+        <div>
+          <h1>Áudio → MIDI</h1>
+          <p>DSP puro (YIN + envelope) · 100% no navegador</p>
+        </div>
+      </div>
+      <div class="badges">
+        <span id="net" class="badge" role="status">online</span>
+        <button id="install" class="btn btn-small" hidden>Instalar app</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="panel controls" aria-label="Controles">
+        <button id="btnMic" class="btn btn-primary" type="button">
+          <span class="dot" aria-hidden="true"></span><span id="btnMicLabel">Gravar do microfone</span>
+        </button>
+        <button id="btnFile" class="btn" type="button">Enviar áudio (.wav, .mp3)</button>
+        <input id="fileInput" type="file" accept="audio/*,.wav,.mp3,.m4a,.ogg,.flac" hidden>
+        <span class="spacer"></span>
+        <button id="btnPreview" class="btn" type="button" disabled>▶ Ouvir prévia</button>
+        <button id="btnDownload" class="btn btn-accent" type="button" disabled>⬇ Baixar arquivo MIDI</button>
+        <button id="btnClear" class="btn btn-ghost" type="button" disabled>Limpar</button>
+      </section>
+
+      <div id="progress" class="progress" hidden><div id="progressBar"></div></div>
+      <p id="status" class="status" aria-live="polite">Pronto. Grave pelo microfone ou envie um arquivo de áudio (melodias monofônicas funcionam melhor).</p>
+
+      <section class="panel readout" aria-label="Detecção em tempo real">
+        <div class="note-big"><span id="noteName">—</span></div>
+        <div class="readout-grid">
+          <div><label>Frequência</label><b id="hzInfo">— Hz</b></div>
+          <div><label>Afinação</label><b id="centsInfo">—</b></div>
+          <div><label>Velocity</label><b id="velInfo">—</b></div>
+          <div><label>MIDI</label><b id="midiInfo">—</b></div>
+        </div>
+        <div class="meter" title="Nível de entrada"><div id="meterFill"></div><div id="gateMark"></div></div>
+      </section>
+
+      <section class="panel roll" aria-label="Piano roll">
+        <div id="rollWrap" class="roll-wrap"><canvas id="roll"></canvas></div>
+        <input id="scroll" class="scroll" type="range" min="0" max="0" step="0.01" value="0" aria-label="Posição no tempo" hidden>
+        <div class="roll-foot"><span id="stats">0 notas</span><span id="viewInfo"></span></div>
+      </section>
+
+      <section class="panel settings" aria-label="Ajustes">
+        <div class="field">
+          <label for="gate">Sensibilidade (noise gate): <b id="gateVal">-45 dB</b></label>
+          <input id="gate" type="range" min="-65" max="-25" step="1" value="-45">
+          <small>Mais para a esquerda = detecta sons mais fracos (e mais ruído).</small>
+        </div>
+        <div class="field">
+          <label for="bpm">Andamento do arquivo MIDI (BPM)</label>
+          <input id="bpm" type="number" min="20" max="300" step="1" value="120" inputmode="numeric">
+          <small>Só afeta a grade de tempo do .mid; a duração real das notas é preservada.</small>
+        </div>
+        <div class="field check">
+          <label><input id="norm" type="checkbox" checked> Normalizar volume ao enviar arquivo</label>
+          <small>Escala o pico para ~-1 dBFS antes da análise (mantém a dinâmica relativa).</small>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>Análise 100% matemática: decimação, RMS, algoritmo YIN, detecção de onset por envelope. Sem IA, sem servidor. <span id="iosHint" hidden>No iPhone/iPad: Compartilhar → Adicionar à Tela de Início.</span></p>
+    </footer>
+  </div>
+  <noscript>Este app precisa de JavaScript.</noscript>
+  <script src="app.js"></script>
+</body>
+</html>
