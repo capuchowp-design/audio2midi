@@ -1,0 +1,110 @@
+name: Build Android (APK + AAB)
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write   # só é usado para anexar os arquivos a um Release quando você cria uma tag v*
+
+concurrency:
+  group: build-android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+      KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'audiomidi' }}
+      HAS_KEYSTORE: ${{ secrets.KEYSTORE_B64 != '' && secrets.KEYSTORE_PASSWORD != '' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Cache do Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Instalar dependências
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install --no-audit --no-fund; fi
+
+      - name: Preparar www/
+        run: node scripts/prepare-www.mjs
+
+      - name: Criar projeto Android
+        run: npx cap add android
+
+      - name: Sincronizar Capacitor
+        run: npx cap sync android
+
+      - name: Restaurar keystore
+        if: env.HAS_KEYSTORE == 'true'
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+        run: echo "$KEYSTORE_B64" | tr -d '\n\r ' | base64 -d > android/app/release.keystore
+
+      - name: Aplicar patches (permissões, versão, assinatura, ícones)
+        run: node scripts/patch-android.mjs
+
+      - name: Compilar (release assinado)
+        if: env.HAS_KEYSTORE == 'true'
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleRelease bundleRelease
+
+      - name: Compilar (debug — sem keystore configurado)
+        if: env.HAS_KEYSTORE != 'true'
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleDebug
+
+      - name: Reunir arquivos em dist/
+        run: |
+          mkdir -p dist
+          VER=$(node -p "require('./package.json').version")
+          NAME="AudioMIDI-${VER}-build${GITHUB_RUN_NUMBER}"
+          if [ "$HAS_KEYSTORE" = "true" ]; then
+            cp android/app/build/outputs/apk/release/app-release.apk "dist/${NAME}.apk"
+            cp android/app/build/outputs/bundle/release/app-release.aab "dist/${NAME}.aab"
+          else
+            cp android/app/build/outputs/apk/debug/app-debug.apk "dist/${NAME}-debug.apk"
+          fi
+          ls -la dist
+
+      - name: Verificar assinatura do APK
+        if: env.HAS_KEYSTORE == 'true'
+        continue-on-error: true
+        run: |
+          APKSIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          "$APKSIGNER" verify --print-certs dist/*.apk
+
+      - name: Publicar artefatos
+        uses: actions/upload-artifact@v4
+        with:
+          name: AudioMIDI-android
+          path: dist/*
+          retention-days: 30
+
+      - name: Anexar ao Release (tags v*)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
