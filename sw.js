@@ -1,14 +1,15 @@
 /* sw.js — Service Worker: cache do "app shell" para uso offline.
    Estratégia: cache-first com revalidação em segundo plano (stale-while-revalidate).
    Para forçar atualização para todos os usuários, incremente CACHE_VERSION. */
-const CACHE_VERSION = 'audio2midi-v1';
+const CACHE_VERSION = 'audio2midi-v2';
 const APP_SHELL = [
   './',
   './index.html',
   './style.css',
   './app.js',
   './manifest.json',
-  './icon.svg'
+  './icon.svg',
+  './privacy.html'
 ];
 
 self.addEventListener('install', (event) => {

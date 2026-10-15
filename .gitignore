@@ -1,0 +1,22 @@
+# dependências e saídas de build
+node_modules/
+www/
+dist/
+android/
+ios/
+
+# CHAVES DE ASSINATURA — NUNCA COMMITAR
+chave/
+*.keystore
+*.jks
+*.b64
+senha.txt
+.env
+.env.*
+
+# sistema / editores
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log

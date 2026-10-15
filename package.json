@@ -1,0 +1,26 @@
+{
+  "name": "audio-midi",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Áudio → MIDI: conversor de áudio em MIDI com DSP puro (YIN), PWA + APK via Capacitor.",
+  "scripts": {
+    "prepare:www": "node scripts/prepare-www.mjs",
+    "android:add": "cap add android",
+    "android:sync": "npm run prepare:www && cap sync android",
+    "android:patch": "node scripts/patch-android.mjs",
+    "android:debug": "npm run android:sync && npm run android:patch && cd android && ./gradlew assembleDebug",
+    "serve": "python3 -m http.server 8080"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.0.0",
+    "@capacitor/core": "^8.0.0",
+    "@capacitor/filesystem": "^8.0.0",
+    "@capacitor/share": "^8.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.0.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

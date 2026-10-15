@@ -688,18 +688,45 @@
     }
 
     /* ---------- download e prévia ---------- */
-    function downloadMidi() {
+    // No app Android (Capacitor) o WebView não baixa blobs: o arquivo é gravado no cache
+    // e entregue pela folha de compartilhamento nativa (Salvar no Drive/Arquivos, enviar etc.).
+    const isNative = !!(global.Capacitor && typeof global.Capacitor.isNativePlatform === 'function' && global.Capacitor.isNativePlatform());
+
+    function bytesToBase64(bytes) {
+      let s = '';
+      for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+      return btoa(s);
+    }
+    async function saveNative(bytes, filename) {
+      const P = global.Capacitor.Plugins || {};
+      if (!P.Filesystem || !P.Share) throw new Error('plugins nativos ausentes');
+      const w = await P.Filesystem.writeFile({ path: filename, data: bytesToBase64(bytes), directory: 'CACHE' });
+      await P.Share.share({ title: filename, text: 'Arquivo MIDI gerado pelo app Áudio → MIDI', url: w.uri, dialogTitle: 'Salvar ou enviar o MIDI' });
+    }
+
+    async function downloadMidi() {
       if (!S.notes.length) return;
       const bytes = buildMidi(S.notes, { bpm: +el.bpm.value || 120 });
+      const d = new Date(), p = (x) => String(x).padStart(2, '0');
+      const filename = S.baseName + '-' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()) + '.mid';
+      if (isNative) {
+        try {
+          await saveNative(bytes, filename);
+          setStatus('Arquivo MIDI pronto: ' + filename, 'ok');
+        } catch (e) {
+          const msg = String(e && e.message || e);
+          if (/cancel/i.test(msg)) setStatus('Compartilhamento cancelado.');
+          else setStatus('Não foi possível salvar o MIDI: ' + msg, 'err');
+        }
+        return;
+      }
       const blob = new Blob([bytes], { type: 'audio/midi' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      const d = new Date(), p = (x) => String(x).padStart(2, '0');
-      a.href = url;
-      a.download = S.baseName + '-' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()) + '.mid';
+      a.href = url; a.download = filename;
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 4000);
-      setStatus('Arquivo MIDI gerado: ' + a.download, 'ok');
+      setStatus('Arquivo MIDI gerado: ' + filename, 'ok');
     }
 
     function stopPreview() {
@@ -761,6 +788,7 @@
 
     /* ---------- PWA: service worker, instalação, estado de rede ---------- */
     function updateNet() {
+      if (isNative) { el.net.textContent = 'app · 100% offline'; el.net.className = 'badge ok'; return; }
       const on = navigator.onLine;
       el.net.textContent = on ? (S.offlineReady ? 'online · pronto offline' : 'online') : 'offline';
       el.net.className = 'badge ' + (on ? (S.offlineReady ? 'ok' : '') : 'off');
@@ -768,7 +796,7 @@
     global.addEventListener('online', updateNet);
     global.addEventListener('offline', updateNet);
 
-    if ('serviceWorker' in navigator) {
+    if ('serviceWorker' in navigator && !isNative) {   // no APK os arquivos já estão embutidos
       global.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js')
           .then(() => navigator.serviceWorker.ready)
@@ -787,7 +815,7 @@
     global.addEventListener('appinstalled', () => { el.install.hidden = true; });
     const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
     const standalone = global.matchMedia && global.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
-    if (isIOS && !standalone) el.iosHint.hidden = false;
+    if (isIOS && !standalone && !isNative) el.iosHint.hidden = false;
 
     /* ---------- início ---------- */
     updateGateMark(); updateNet(); updateButtons(); updateStats(); resetView(); draw();

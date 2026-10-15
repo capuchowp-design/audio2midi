@@ -1,0 +1,18 @@
+{
+  "appId": "com.meuidwp.audiomidi",
+  "appName": "Áudio para MIDI",
+  "webDir": "www",
+  "backgroundColor": "#0b0d14",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false,
+    "webContentsDebuggingEnabled": false
+  },
+  "plugins": {
+    "SystemBars": {
+      "insetsHandling": "css"
+    }
+  }
+}

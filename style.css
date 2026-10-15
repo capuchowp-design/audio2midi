@@ -111,6 +111,7 @@ main { display: grid; gap: 14px; }
 .field.check input { width: 18px; height: 18px; accent-color: var(--accent); }
 
 footer { color: var(--mute); font-size: .78rem; margin-top: 18px; text-align: center; }
+footer a { color: var(--accent); }
 
 /* ---------- Responsivo ---------- */
 @media (max-width: 640px) {
